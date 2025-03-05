@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interaktives Hierarchie-Diagramm</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      background-color: #121212;
+      margin: 0;
+      overflow: hidden;
+    }
+    /* Light Mode */
+    body.light-mode {
+      background-color: white;
+    }
+    svg {
+      width: 100vw;
+      height: 100vh;
+    }
+    .circle {
+      fill: #121212;
+      stroke: white;
+      stroke-width: 2;
+      cursor: pointer;
+    }
+    body.light-mode .circle {
+      fill: #f0f0f0;
+      stroke: black;
+    }
+    .link {
+      stroke: white;
+      stroke-width: 2;
+      marker-end: url(#arrow);
+      opacity: 0.5;
+    }
+    body.light-mode .link {
+      stroke: black;
+    }
+    .parent-link {
+      stroke: white;
+      stroke-width: 5;
+      opacity: 0.3;
+    }
+    body.light-mode .parent-link {
+      stroke: black;
+    }
+    text {
+      fill: white;
+      text-anchor: middle;
+      pointer-events: none;
+    }
+    body.light-mode text {
+      fill: black;
+    }
+    /* Buttons */
+    #toggleMode, #togglePhase {
+      position: absolute;
+      top: 10px;
+      z-index: 1000;
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    #toggleMode {
+      right: 10px;
+      background-color: #444;
+      color: white;
+    }
+    body.light-mode #toggleMode {
+      background-color: #ddd;
+      color: black;
+    }
+    #togglePhase {
+      right: 130px;
+      background-color: #444;
+      color: white;
+    }
+    body.light-mode #togglePhase {
+      background-color: #ddd;
+      color: black;
+    }
+  </style>
+</head>
+<body>
+  <button id="toggleMode">Light Mode</button>
+  <button id="togglePhase">Wechsel zu Q-Phase</button>
+  <svg id="diagram">
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="white" />
+      </marker>
+    </defs>
+  </svg>
+  <script>
+    // Beispiel-Daten – Jeder Knoten erhält eine phase-Eigenschaft:
+    // "E" = Einführungsphase, "Q" = Qualifikationsphase, "both" = in beiden Phasen.
+    const hierarchyData = [
+      {
+        text: "Funktionen & Analysis",
+        phase: "both",
+        children: [
+          {
+            text: "Funktionen",
+            phase: "both",
+            children: [
+              { text: "Potenzfunktionen mit ganzzahligen Exponenten", phase: "E" },
+              { text: "ganzrationale Funktionen", phase: "both" },
+              { text: "Exponentialfunktionen", phase: "Q" }
+            ]
+          },
+          {
+            text: "Eigenschaften von Funktionen",
+            phase: "both",
+            children: [
+              { text: "Verlauf des Graphen", phase: "both" },
+              { text: "Definitions-\nbereich", phase: "both" },
+              { text: "Wertebereich", phase: "both" },
+              { text: "Nullstellen", phase: "both" },
+              { text: "Symmetrie", phase: "both" },
+              { text: "Verhalten für\nx → ±∞", phase: "both" }
+            ]
+          },
+          {
+            text: "Transformationen",
+            phase: "E",
+            children: [
+              { text: "Spiegelung an den Koordinatenachsen", phase: "E" },
+              { text: "Verschiebung", phase: "E" },
+              { text: "Streckung", phase: "E" }
+            ]
+          },
+          {
+            text: "Grundverständnis des Ableitungsbegriffs",
+            phase: "E",
+            children: [
+              { text: "mittlere und lokale Änderungsrate", phase: "E" },
+              { text: "graphisches Ableiten", phase: "E" },
+              { text: "Sekante und Tangente", phase: "E" }
+            ]
+          },
+          {
+            text: "Differentialrechnung",
+            phase: "both",
+            children: [
+              { text: "'einfache'\nAbleitungsregeln", phase: "both" },
+              { text: "Monotonie", phase: "E" },
+              { text: "Extrempunkte", phase: "E" },
+              { text: "lokale und\nglobale Extrema", phase: "E" },
+              { text: "Krümmungs-\nverhalten", phase: "E" },
+              { text: "Wendepunkte", phase: "E" },
+              { text: "Extremwert-\nprobleme", phase: "Q" },
+              { text: "Rekonstruktion von\nFunktionstermen", phase: "Q" }
+            ]
+          },
+          {
+            text: "Integralrechnung",
+            phase: "Q",
+            children: [
+              { text: "Produktsumme", phase: "Q" },
+              { text: "orientierte Fläche", phase: "Q" },
+              { text: "Bestandsfunktion", phase: "Q" },
+              { text: "Integralfunktion", phase: "Q" },
+              { text: "Stammfunktion", phase: "Q" },
+              { text: "bestimmtes Integral", phase: "Q" },
+              { text: "Hauptsatz der Differential- und Integralrechung", phase: "Q" }
+            ]
+          }
+        ]
+      },
+      {
+        text: "Analytische Geometrie und Lineare Algebra",
+        phase: "both",
+        children: [
+          {
+            text: "Koordinatisierung des Raumes",
+            phase: "E",
+            children: [
+              { text: "Punkte", phase: "E" },
+              { text: "Ortsvektoren", phase: "E" },
+              { text: "Vektoren", phase: "E" }
+            ]
+          },
+          {
+            text: "Vektoroperationen",
+            phase: "both",
+            children: [
+              { text: "Addition", phase: "E" },
+              { text: "Multiplikation mit einem Skalar", phase: "E" },
+              { text: "Skalarprodukt", phase: "Q" }
+            ]
+          },
+          {
+            text: "Eigenschaften von Vektoren",
+            phase: "E",
+            children: [
+              { text: "Länge", phase: "E" },
+              { text: "Kollinearität", phase: "E" }
+            ]
+          },
+          {
+            text: "Geraden und Strecken",
+            phase: "E",
+            children: [
+              { text: "Parameterform", phase: "E" }
+            ]
+          },
+          {
+            text: "Lagebeziehungen von Geraden",
+            phase: "E",
+            children: [
+              { text: "identisch", phase: "E" },
+              { text: "parallel", phase: "E" },
+              { text: "windschief", phase: "E" },
+              { text: "sich schneidend", phase: "E" }
+            ]
+          },
+          {
+            text: "Ebenen",
+            phase: "Q",
+            children: [
+              { text: "Parameterform", phase: "Q" },
+              { text: "Koordinatenform", phase: "Q" },
+              { text: "Normalenvektor", phase: "Q" }
+            ]
+          },
+          {
+            text: "Schnittwinkel",
+            phase: "Q",
+            children: [
+              { text: "Geraden", phase: "Q" },
+              { text: "Geraden und Ebenen", phase: "Q" },
+              { text: "Ebenen", phase: "Q" }
+            ]
+          },
+          {
+            text: "Schnittpunkte",
+            phase: "both",
+            children: [
+              { text: "Geraden", phase: "E" },
+              { text: "Geraden und Ebenen", phase: "Q" }
+            ]
+          },
+          { text: "Lineare Gleichungssysteme", phase: "both" }
+        ]
+      },
+      {
+        text: "Stochastik",
+        phase: "Q", // Diese Themen sind in der Qualifikationsphase relevant.
+        children: [
+          {
+            text: "Mehrstufige Zufallsexperimente",
+            phase: "Q",
+            children: [
+              { text: "Urnenmodelle", phase: "Q" },
+              { text: "Baumdiagramme", phase: "Q" },
+              { text: "Vierfeldertafeln", phase: "Q" },
+              { text: "bedingte Wahrscheinlichkeiten", phase: "Q" },
+              { text: "Pfadregeln", phase: "Q" }
+            ]
+          },
+          {
+            text: "Kenngrößen",
+            phase: "Q",
+            children: [
+              { text: "Erwartungswert", phase: "Q" },
+              { text: "Varianz", phase: "Q" },
+              { text: "Standardabweichung", phase: "Q" }
+            ]
+          },
+          {
+            text: "Diskrete Zufallsgrößen",
+            phase: "Q",
+            children: [
+              { text: "Wahrscheinlichkeits-\nverteilungen", phase: "Q" },
+              { text: "Kenngrößen", phase: "Q" }
+            ]
+          },
+          {
+            text: "Binomialverteilung",
+            phase: "Q",
+            children: [
+              { text: "Kenngrößen", phase: "Q" },
+              { text: "Histogramme", phase: "Q" }
+            ]
+          }
+        ]
+      }
+    ];
+    
+    const svg = d3.select("#diagram");
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const g = svg.append("g");
+    
+    // Standardphase: Standardmäßig "E" (Einführungsphase)
+    let currentPhase = "E";
+    
+    // Zoom-Setup
+    const zoom = d3.zoom()
+      .scaleExtent([1, 8])
+      .on("zoom", zoomed);
+    svg.call(zoom);
+    
+    // Top-Level-Kreise in Dreiecksform anordnen
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const triangleRadius = 300;
+    const initialPositions = [
+      { x: centerX, y: centerY - triangleRadius },
+      { x: centerX - triangleRadius * Math.cos(Math.PI / 6), y: centerY + triangleRadius * Math.sin(Math.PI / 6) },
+      { x: centerX + triangleRadius * Math.cos(Math.PI / 6), y: centerY + triangleRadius * Math.sin(Math.PI / 6) }
+    ];
+    
+    let nodeId = 0;
+    let nodes = [];
+    let links = [];
+    
+    // Textnormalisierung
+    function normalizeText(text) {
+      return text.replace(/\s+/g, ' ').trim();
+    }
+    
+    // Hilfsfunktion: Berechnung der Ring-Anordnung für Kinder
+    function arrangeChildren(parentRadius, marginOuter, marginBetween, N) {
+      const alpha = Math.PI / N;
+      const sinAlpha = Math.sin(alpha);
+      let childRadius = ((parentRadius - marginOuter) * sinAlpha - marginBetween / 2) / (1 + sinAlpha);
+      if (childRadius < 1) {
+        childRadius = Math.max(1, 0.2 * parentRadius);
+      }
+      let d = parentRadius - marginOuter - childRadius;
+      return { childRadius, d };
+    }
+    
+    // Rekursive Funktion zur Erstellung von Knoten inkl. dynamischer Positionierung.
+    // Speichert auch die Originaldaten in node.data (inkl. phase), damit wir später darauf zugreifen können.
+    function processNode(data, cx, cy, level, parentRadius, parent) {
+      // Doppelte Titel vermeiden
+      if (parent) {
+        if (normalizeText(parent.text) === normalizeText(data.text)) return;
+        if (nodes.some(n => n.parent && n.parent.id === parent.id && normalizeText(n.text) === normalizeText(data.text))) return;
+      }
+      // Falls keine phase definiert ist, setze "both"
+      if (!data.phase) {
+        data.phase = "both";
+      }
+      let node = {
+        id: nodeId++,
+        cx: cx,
+        cy: cy,
+        r: parentRadius,
+        text: data.text,
+        data: data,  // Enthält phase
+        level: level,
+        parent: parent,
+        childrenData: data.children || []
+      };
+      // Nur Ebene 1 initial sichtbar
+      node.visible = (level === 1);
+      nodes.push(node);
+      if (parent) {
+        links.push({ source: parent, target: node });
+      }
+      
+      if (data.children && data.children.length > 0) {
+        let N = data.children.length;
+        const marginOuter = 7;
+        const marginBetween = 7;
+        if (N > 1) {
+          const { childRadius, d } = arrangeChildren(parentRadius, marginOuter, marginBetween, N);
+          data.children.forEach((child, i) => {
+            let angle = 2 * Math.PI * i / N;
+            let childCx = cx + d * Math.cos(angle);
+            let childCy = cy + d * Math.sin(angle);
+            processNode(child, childCx, childCy, level + 1, childRadius, node);
+          });
+        } else {
+          let d = parentRadius * 0.5;
+          let childRadius = parentRadius * 0.4;
+          if (d + childRadius > parentRadius - marginOuter) {
+            d = parentRadius - marginOuter - childRadius;
+          }
+          data.children.forEach(child => {
+            processNode(child, cx, cy - d, level + 1, childRadius, node);
+          });
+        }
+      }
+    }
+    
+    // Erstelle die Top-Level-Knoten
+    hierarchyData.forEach((d, i) => {
+      processNode(d, initialPositions[i].x, initialPositions[i].y, 1, 200, null);
+    });
+    
+    // Elternkreise filtern und verbinden
+    const parentNodes = nodes.filter(d => d.parent === null);
+    const parentLinks = [];
+    for (let i = 0; i < parentNodes.length; i++) {
+      for (let j = i + 1; j < parentNodes.length; j++) {
+        parentLinks.push({ source: parentNodes[i], target: parentNodes[j] });
+      }
+    }
+    
+    const parentLinksGroup = g.insert("g", ":first-child");
+    parentLinksGroup.selectAll(".parent-link")
+      .data(parentLinks)
+      .enter()
+      .append("line")
+      .attr("class", "parent-link")
+      .attr("x1", d => d.source.cx)
+      .attr("y1", d => d.source.cy)
+      .attr("x2", d => d.target.cx)
+      .attr("y2", d => d.target.cy);
+    
+    // Kreise zeichnen
+    const circles = g.selectAll(".circle")
+      .data(nodes, d => d.id)
+      .enter()
+      .append("circle")
+      .attr("class", "circle")
+      .attr("cx", d => d.cx)
+      .attr("cy", d => d.cy)
+      .attr("r", d => d.r);
+    
+    // Zeilenbasierte wrapText-Funktion (verteilt Zeilen um die Mitte)
+    function wrapText(textElement, text, radius) {
+      textElement.text("");
+      textElement.selectAll("tspan").remove();
+      
+      const minFontSize = 2.5;
+      const fontSize = Math.max(minFontSize, radius / 6);
+      textElement.attr("text-anchor", "middle")
+                 .attr("font-size", fontSize);
+      
+      const maxLineWidth = radius * 2 * 0.9;
+      const lineHeight = fontSize;
+      
+      let paragraphs = text.split("\n");
+      let lines = [];
+      
+      let tempTspan = textElement.append("tspan").attr("x", textElement.attr("x"));
+      
+      paragraphs.forEach(paragraph => {
+        let words = paragraph.split(" ");
+        let currentLine = "";
+        words.forEach(word => {
+          let testLine = currentLine + word + " ";
+          tempTspan.text(testLine);
+          if (tempTspan.node().getComputedTextLength() > maxLineWidth) {
+            lines.push(currentLine.trim());
+            currentLine = word + " ";
+            tempTspan.text(currentLine);
+          } else {
+            currentLine = testLine;
+          }
+        });
+        if (currentLine.trim() !== "") {
+          lines.push(currentLine.trim());
+        }
+      });
+      tempTspan.remove();
+      
+      let lineCount = lines.length;
+      let startDy = -(lineCount - 1) * lineHeight / 2;
+      
+      lines.forEach((l, i) => {
+        textElement.append("tspan")
+          .attr("x", textElement.attr("x"))
+          .attr("dy", i === 0 ? startDy : lineHeight)
+          .text(l);
+      });
+    }
+    
+    // Labels zeichnen
+    const labels = g.selectAll(".label")
+      .data(nodes, d => d.id)
+      .enter()
+      .append("text")
+      .attr("class", "label")
+      .attr("x", d => d.cx)
+      .attr("y", d => d.cy)
+      .each(function(d) {
+        wrapText(d3.select(this), d.text, d.r);
+      });
+    
+    // Hilfsfunktion für die Label-Opacity:
+    function getLabelOpacity(d) {
+      if (!d.visible) return 0;
+      // Wenn ein Knoten sichtbare Kinder hat, verstecke dessen Label (drill-down)
+      if (nodes.some(n => n.parent === d && n.visible)) return 0;
+      // Ansonsten: Wenn der Knoten (rekursiv) zur aktuellen Phase passt, 1, sonst 0.2
+      return (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.7;
+    }
+    
+    // Zoom-Funktion: Wendet sowohl die Sichtbarkeits- als auch Phase-Filterung an.
+    function zoomed(event) {
+      g.attr("transform", event.transform);
+      const currentScale = event.transform.k;
+      nodes.forEach(d => {
+        d.visible = currentScale >= d.level;
+      });
+      // Kreise: Setze Opacity basierend auf Sichtbarkeit und Phase.
+      circles.style("opacity", d => {
+        return d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2;
+      });
+      // Labels: Verwende getLabelOpacity (beachte, dass Labels von Knoten mit sichtbaren Kindern ausgeblendet werden)
+      labels.style("opacity", d => getLabelOpacity(d));
+    }
+    
+    // updatePhase: Wendet die Phase-Filterung auf alle sichtbaren Knoten an, ohne den Zoom zu verändern.
+    function updatePhase() {
+      circles.transition().style("opacity", d => {
+        return d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2;
+      });
+      labels.transition().style("opacity", d => getLabelOpacity(d));
+    }
+    
+    // Initialen Zoom-Transform aufrufen (Standard: nur Eltern sind sichtbar)
+    zoomed({ transform: d3.zoomIdentity });
+    
+    // Dark/Light Mode Button
+    document.getElementById("toggleMode").addEventListener("click", function(){
+      document.body.classList.toggle("light-mode");
+      if(document.body.classList.contains("light-mode")){
+        this.textContent = "Dark Mode";
+        d3.select("#arrow path").attr("fill", "black");
+      } else {
+        this.textContent = "Light Mode";
+        d3.select("#arrow path").attr("fill", "white");
+      }
+    });
+    
+    // Phase-Toggle Button: Wechselt zwischen Einführungsphase ("E") und Qualifikationsphase ("Q").
+    document.getElementById("togglePhase").addEventListener("click", function(){
+      if (currentPhase === "E") {
+        currentPhase = "Q";
+        this.textContent = "Wechsel zu E-Phase";
+      } else {
+        currentPhase = "E";
+        this.textContent = "Wechsel zu Q-Phase";
+      }
+      updatePhase();
+    });
+  </script>
+</body>
+</html>
