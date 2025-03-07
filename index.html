@@ -248,7 +248,7 @@
       },
       {
         text: "Stochastik",
-        phase: "Q", // Diese Themen sind in der Qualifikationsphase relevant.
+        phase: "Q",
         children: [
           {
             text: "Mehrstufige Zufallsexperimente",
@@ -291,8 +291,8 @@
     ];
     
     const svg = d3.select("#diagram");
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+    let width = window.innerWidth;
+    let height = window.innerHeight;
     const g = svg.append("g");
     
     // Standardphase: Standardmäßig "E" (Einführungsphase)
@@ -300,7 +300,7 @@
     
     // Zoom-Setup
     const zoom = d3.zoom()
-      .scaleExtent([1, 8])
+      .scaleExtent([0.5, 8])
       .on("zoom", zoomed);
     svg.call(zoom);
     
@@ -323,7 +323,7 @@
       return text.replace(/\s+/g, ' ').trim();
     }
     
-    // Hilfsfunktion: Berechnung der Ring-Anordnung für Kinder
+    // Berechnung der Ring-Anordnung für Kinder
     function arrangeChildren(parentRadius, marginOuter, marginBetween, N) {
       const alpha = Math.PI / N;
       const sinAlpha = Math.sin(alpha);
@@ -336,17 +336,12 @@
     }
     
     // Rekursive Funktion zur Erstellung von Knoten inkl. dynamischer Positionierung.
-    // Speichert auch die Originaldaten in node.data (inkl. phase), damit wir später darauf zugreifen können.
     function processNode(data, cx, cy, level, parentRadius, parent) {
-      // Doppelte Titel vermeiden
       if (parent) {
         if (normalizeText(parent.text) === normalizeText(data.text)) return;
         if (nodes.some(n => n.parent && n.parent.id === parent.id && normalizeText(n.text) === normalizeText(data.text))) return;
       }
-      // Falls keine phase definiert ist, setze "both"
-      if (!data.phase) {
-        data.phase = "both";
-      }
+      if (!data.phase) { data.phase = "both"; }
       let node = {
         id: nodeId++,
         cx: cx,
@@ -358,12 +353,9 @@
         parent: parent,
         childrenData: data.children || []
       };
-      // Nur Ebene 1 initial sichtbar
       node.visible = (level === 1);
       nodes.push(node);
-      if (parent) {
-        links.push({ source: parent, target: node });
-      }
+      if (parent) { links.push({ source: parent, target: node }); }
       
       if (data.children && data.children.length > 0) {
         let N = data.children.length;
@@ -425,24 +417,18 @@
       .attr("cy", d => d.cy)
       .attr("r", d => d.r);
     
-    // Zeilenbasierte wrapText-Funktion (verteilt Zeilen um die Mitte)
+    // wrapText-Funktion: verteilt Zeilen mittig im Kreis
     function wrapText(textElement, text, radius) {
       textElement.text("");
       textElement.selectAll("tspan").remove();
-      
       const minFontSize = 2.5;
       const fontSize = Math.max(minFontSize, radius / 6);
-      textElement.attr("text-anchor", "middle")
-                 .attr("font-size", fontSize);
-      
+      textElement.attr("text-anchor", "middle").attr("font-size", fontSize);
       const maxLineWidth = radius * 2 * 0.9;
       const lineHeight = fontSize;
-      
       let paragraphs = text.split("\n");
       let lines = [];
-      
       let tempTspan = textElement.append("tspan").attr("x", textElement.attr("x"));
-      
       paragraphs.forEach(paragraph => {
         let words = paragraph.split(" ");
         let currentLine = "";
@@ -462,10 +448,8 @@
         }
       });
       tempTspan.remove();
-      
       let lineCount = lines.length;
       let startDy = -(lineCount - 1) * lineHeight / 2;
-      
       lines.forEach((l, i) => {
         textElement.append("tspan")
           .attr("x", textElement.attr("x"))
@@ -486,40 +470,47 @@
         wrapText(d3.select(this), d.text, d.r);
       });
     
-    // Hilfsfunktion für die Label-Opacity:
+    // Funktion zur Berechnung der Label-Opacity
     function getLabelOpacity(d) {
       if (!d.visible) return 0;
-      // Wenn ein Knoten sichtbare Kinder hat, verstecke dessen Label (drill-down)
       if (nodes.some(n => n.parent === d && n.visible)) return 0;
-      // Ansonsten: Wenn der Knoten (rekursiv) zur aktuellen Phase passt, 1, sonst 0.2
       return (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.7;
     }
     
-    // Zoom-Funktion: Wendet sowohl die Sichtbarkeits- als auch Phase-Filterung an.
+    // Zoom-Funktion: Wendet Sichtbarkeit und Phase-Filterung an.
     function zoomed(event) {
       g.attr("transform", event.transform);
       const currentScale = event.transform.k;
       nodes.forEach(d => {
         d.visible = currentScale >= d.level;
       });
-      // Kreise: Setze Opacity basierend auf Sichtbarkeit und Phase.
-      circles.style("opacity", d => {
-        return d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2;
-      });
-      // Labels: Verwende getLabelOpacity (beachte, dass Labels von Knoten mit sichtbaren Kindern ausgeblendet werden)
+      circles.style("opacity", d => d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2);
       labels.style("opacity", d => getLabelOpacity(d));
     }
     
-    // updatePhase: Wendet die Phase-Filterung auf alle sichtbaren Knoten an, ohne den Zoom zu verändern.
+    // updatePhase: Aktualisiert die Darstellung ohne Zoom-Änderung.
     function updatePhase() {
-      circles.transition().style("opacity", d => {
-        return d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2;
-      });
+      circles.transition().style("opacity", d => d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2);
       labels.transition().style("opacity", d => getLabelOpacity(d));
     }
     
-    // Initialen Zoom-Transform aufrufen (Standard: nur Eltern sind sichtbar)
+    // Initialer Zoom-Transform (nur Eltern sind sichtbar)
     zoomed({ transform: d3.zoomIdentity });
+    
+    // Automatische Skalierung: Passt die Visualisierung an das Fenster an.
+    function autoZoom() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      const bbox = g.node().getBBox();
+      const scale = Math.min(width / bbox.width, height / bbox.height);
+      const tx = (width - bbox.width * scale) / 2 - bbox.x * scale;
+      const ty = (height - bbox.height * scale) / 2 - bbox.y * scale;
+      svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+    }
+    
+    // Initialer autoZoom-Aufruf und Anpassung beim Fensterwechsel
+    autoZoom();
+    window.addEventListener("resize", autoZoom);
     
     // Dark/Light Mode Button
     document.getElementById("toggleMode").addEventListener("click", function(){
@@ -533,7 +524,7 @@
       }
     });
     
-    // Phase-Toggle Button: Wechselt zwischen Einführungsphase ("E") und Qualifikationsphase ("Q").
+    // Phase-Toggle Button: Wechsel zwischen Einführungsphase ("E") und Qualifikationsphase ("Q").
     document.getElementById("togglePhase").addEventListener("click", function(){
       if (currentPhase === "E") {
         currentPhase = "Q";
