@@ -304,7 +304,7 @@
       .on("zoom", zoomed);
     svg.call(zoom);
     
-    // Top-Level-Kreise in Dreiecksform anordnen
+    // Anordnung der Top-Level-Kreise (Level 1) in Dreiecksform
     const centerX = width / 2;
     const centerY = height / 2;
     const triangleRadius = 300;
@@ -335,7 +335,7 @@
       return { childRadius, d };
     }
     
-    // Rekursive Funktion zur Erstellung von Knoten inkl. dynamischer Positionierung.
+    // Rekursive Erstellung der Knoten mit dynamischer Positionierung
     function processNode(data, cx, cy, level, parentRadius, parent) {
       if (parent) {
         if (normalizeText(parent.text) === normalizeText(data.text)) return;
@@ -353,7 +353,7 @@
         parent: parent,
         childrenData: data.children || []
       };
-      // Für Level 1 direkt sichtbar (unabhängig vom Zoom)
+      // Level‑1-Kreise sind immer sichtbar
       node.visible = (level === 1);
       nodes.push(node);
       if (parent) { links.push({ source: parent, target: node }); }
@@ -388,7 +388,7 @@
       processNode(d, initialPositions[i].x, initialPositions[i].y, 1, 200, null);
     });
     
-    // Elternkreise filtern und verbinden
+    // Erstelle Verbindungen zwischen den Level‑1-Kreisen (Eltern)
     const parentNodes = nodes.filter(d => d.parent === null);
     const parentLinks = [];
     for (let i = 0; i < parentNodes.length; i++) {
@@ -408,7 +408,7 @@
       .attr("x2", d => d.target.cx)
       .attr("y2", d => d.target.cy);
     
-    // Kreise zeichnen
+    // Zeichne die Kreise
     const circles = g.selectAll(".circle")
       .data(nodes, d => d.id)
       .enter()
@@ -418,7 +418,7 @@
       .attr("cy", d => d.cy)
       .attr("r", d => d.r);
     
-    // wrapText-Funktion: verteilt Zeilen mittig im Kreis
+    // Funktion zum Mittig umbrechen des Textes im Kreis
     function wrapText(textElement, text, radius) {
       textElement.text("");
       textElement.selectAll("tspan").remove();
@@ -459,7 +459,7 @@
       });
     }
     
-    // Labels zeichnen
+    // Zeichne die Labels
     const labels = g.selectAll(".label")
       .data(nodes, d => d.id)
       .enter()
@@ -471,7 +471,7 @@
         wrapText(d3.select(this), d.text, d.r);
       });
     
-    // Berechnung der Label-Opacity
+    // Bestimme die Label-Opacity
     function getLabelOpacity(d) {
       if (!d.visible) return 0;
       // Falls ein Knoten sichtbare Kinder hat, Label ausblenden
@@ -479,14 +479,30 @@
       return (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.7;
     }
     
-    // Zoom-Funktion: Wendet Transformation, Sichtbarkeit und Phase-Filterung an.
+    // Zoom-Funktion: Transformation anwenden, Sichtbarkeit festlegen und – falls ein Elternkreis den Bildschirm füllt – die Kinder (Level 2) anzeigen.
     function zoomed(event) {
       g.attr("transform", event.transform);
       const currentScale = event.transform.k;
+      
+      // Für jeden Level‑1-Knoten: Prüfe, ob sein Durchmesser (in Bildschirmkoordinaten) mindestens 90 % der kleineren Viewport-Dimension erreicht.
       nodes.forEach(d => {
-        // Level 1 Knoten immer sichtbar, ansonsten abhängig vom Zoom
-        d.visible = (d.level === 1) || (currentScale >= d.level);
+        if (d.level === 1) {
+          const screenRadius = d.r * currentScale;
+          d.forceShowChildren = (2 * screenRadius >= Math.min(width, height) * 0.9);
+        }
       });
+      
+      // Sichtbarkeit der Knoten festlegen:
+      nodes.forEach(d => {
+        if (d.level === 1) {
+          d.visible = true;  // Eltern immer sichtbar
+        } else if (d.level === 2 && d.parent && d.parent.forceShowChildren) {
+          d.visible = true;  // Kinder werden sichtbar, wenn ihr Elternkreis den Bildschirm füllt
+        } else {
+          d.visible = (currentScale >= d.level);
+        }
+      });
+      
       circles.style("opacity", d => d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2);
       labels.style("opacity", d => getLabelOpacity(d));
     }
@@ -497,7 +513,7 @@
       labels.transition().style("opacity", d => getLabelOpacity(d));
     }
     
-    // Initialer Zoom-Transform (nur Eltern sind sichtbar)
+    // Initialer Zoom-Transform (Eltern sind immer sichtbar)
     zoomed({ transform: d3.zoomIdentity });
     
     // Automatische Skalierung: Passt die Visualisierung an das Fenster an.
@@ -511,7 +527,7 @@
       svg.transition().duration(750).call(zoom.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
     }
     
-    // Initialer autoZoom-Aufruf und Anpassung beim Fensterwechsel
+    // Initialer autoZoom-Aufruf und Neuanpassung bei Fensteränderungen
     autoZoom();
     window.addEventListener("resize", autoZoom);
     
