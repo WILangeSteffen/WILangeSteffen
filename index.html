@@ -348,11 +348,12 @@
         cy: cy,
         r: parentRadius,
         text: data.text,
-        data: data,  // Enthält phase
+        data: data,
         level: level,
         parent: parent,
         childrenData: data.children || []
       };
+      // Für Level 1 direkt sichtbar (unabhängig vom Zoom)
       node.visible = (level === 1);
       nodes.push(node);
       if (parent) { links.push({ source: parent, target: node }); }
@@ -470,19 +471,21 @@
         wrapText(d3.select(this), d.text, d.r);
       });
     
-    // Funktion zur Berechnung der Label-Opacity
+    // Berechnung der Label-Opacity
     function getLabelOpacity(d) {
       if (!d.visible) return 0;
+      // Falls ein Knoten sichtbare Kinder hat, Label ausblenden
       if (nodes.some(n => n.parent === d && n.visible)) return 0;
       return (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.7;
     }
     
-    // Zoom-Funktion: Wendet Sichtbarkeit und Phase-Filterung an.
+    // Zoom-Funktion: Wendet Transformation, Sichtbarkeit und Phase-Filterung an.
     function zoomed(event) {
       g.attr("transform", event.transform);
       const currentScale = event.transform.k;
       nodes.forEach(d => {
-        d.visible = currentScale >= d.level;
+        // Level 1 Knoten immer sichtbar, ansonsten abhängig vom Zoom
+        d.visible = (d.level === 1) || (currentScale >= d.level);
       });
       circles.style("opacity", d => d.visible && (d.data.phase === "both" || d.data.phase === currentPhase) ? 1 : 0.2);
       labels.style("opacity", d => getLabelOpacity(d));
